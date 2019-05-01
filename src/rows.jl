@@ -22,12 +22,12 @@ state_to_index(it::Generator, state) = state_to_index(it.iter, state)
 """
     Enumerated{It}
 
-Relies on the fact that iteration states can be converted to indices; thus, you might have to define `LightQuery.state_to_index` for unrecognized types. Ignores some iterators like `Filter`.
+Relies on the fact that iteration states can be converted to indices; thus, you might have to define `LightQuery.state_to_index` for unrecognized types. "Sees through" some iterators like `Filter`.
 
 ```jldoctest
 julia> using LightQuery
 
-julia> when([4, 3, 2, 1], iseven) |> Enumerated |> collect
+julia> collect(Enumerated(when([4, 3, 2, 1], iseven)))
 2-element Array{Tuple{Int64,Int64},1}:
  (1, 4)
  (3, 2)
@@ -60,13 +60,13 @@ Generalized sort. `keywords` will be passed to `sort!`; see the documentation th
 ```jldoctest
 julia> using LightQuery
 
-julia> order([
+julia> @name order([
             (item = "b", index = 2),
             (item = "a", index = 1)
-        ], Names(:index))
-2-element view(::Array{NamedTuple{(:item, :index),Tuple{String,Int64}},1}, [2, 1]) with eltype NamedTuple{(:item, :index),Tuple{String,Int64}}:
- (item = "a", index = 1)
- (item = "b", index = 2)
+        ], :index)
+2-element view(::Array{Tuple{Tuple{LightQuery.Name{:item},String},Tuple{LightQuery.Name{:index},Int64}},1}, [2, 1]) with eltype Tuple{Tuple{LightQuery.Name{:item},String},Tuple{LightQuery.Name{:index},Int64}}:
+ ((item, "a"), (index, 1))
+ ((item, "b"), (index, 2))
 ```
 """
 order(it, call; keywords...) =
@@ -89,14 +89,8 @@ struct Indexed{It, Indices}
     it::It
     indices::Indices
 end
-@propagate_inbounds function getindex(it::Indexed, index)
-    inner_index = get(it.indices, index, missing)
-    if inner_index === missing
-        missing
-    else
-        it.it[inner_index]
-    end
-end
+@propagate_inbounds getindex(it::Indexed, index) = it.it[it.indices[index]]
+haskey(it::Indexed, index) = haskey(it.indices, index)
 function iterate(it::Indexed)
     item, state = @ifsomething iterate(it.indices)
     (item.first => it.it[item.second]), state
@@ -117,25 +111,21 @@ eltype(::Type{Indexed{It, Indices}}) where {It, Indices} =
 """
     indexed(it, call)
 
-Index `it` by the results of `call`, with a default to `missing`. Relies on
-[`Enumerated`](@ref).
+Index `it` by the results of `call`. Relies on [`Enumerated`](@ref).
 
 ```jldoctest
 julia> using LightQuery
 
-julia> result = indexed(
+julia> result = @name indexed(
             [
                 (item = "b", index = 2),
                 (item = "a", index = 1)
             ],
-            Name(:index)
+            :index
         );
 
 julia> result[1]
-(item = "a", index = 1)
-
-julia> result[3]
-missing
+((item, "a"), (index, 1))
 ```
 """
 function indexed(it, call)
@@ -161,10 +151,10 @@ Mark that `it` has been pre-sorted by `call`. For use with [`Group`](@ref) or
 ```jldoctest
 julia> using LightQuery
 
-julia> By([
+julia> @name By([
             (item = "a", index = 1),
             (item = "b", index = 2)
-        ], Names(:index));
+        ], :index);
 ```
 """
 struct By{It, Call}
@@ -186,19 +176,19 @@ Group consecutive keys in `it`. Requires a presorted object (see [`By`](@ref)). 
 ```jldoctest
 julia> using LightQuery
 
-julia> Group(By(
+julia> @name Group(By(
             [
                 (item = "a", group = 1),
                 (item = "b", group = 1),
                 (item = "c", group = 2),
                 (item = "d", group = 2)
             ],
-            Names(:group)
+            :group
         )) |>
         collect
-2-element Array{Pair{NamedTuple{(:group,),Tuple{Int64}},SubArray{NamedTuple{(:item, :group),Tuple{String,Int64}},1,Array{NamedTuple{(:item, :group),Tuple{String,Int64}},1},Tuple{UnitRange{Int64}},true}},1}:
- (group = 1,) => [(item = "a", group = 1), (item = "b", group = 1)]
- (group = 2,) => [(item = "c", group = 2), (item = "d", group = 2)]
+2-element Array{Pair{Int64,SubArray{Tuple{Tuple{LightQuery.Name{:item},String},Tuple{LightQuery.Name{:group},Int64}},1,Array{Tuple{Tuple{LightQuery.Name{:item},String},Tuple{LightQuery.Name{:group},Int64}},1},Tuple{UnitRange{Int64}},true}},1}:
+ 1 => [((item, "a"), (group, 1)), ((item, "b"), (group, 1))]
+ 2 => [((item, "c"), (group, 2)), ((item, "d"), (group, 2))]
 ```
 """
 Group(it::By) = Group(it.it, it.call)
@@ -267,7 +257,7 @@ Find all pairs where `isequal(left.call(left.it), right.call(right.it))`.
 ```jldoctest Join
 julia> using LightQuery
 
-julia> Join(
+julia> @name Join(
             By(
                 [
                     (left = "a", index = 1),
@@ -275,7 +265,7 @@ julia> Join(
                     (left = "e", index = 5),
                     (left = "f", index = 6)
                 ],
-                Names(:index)
+                :index
             ),
             By(
                 [
@@ -284,17 +274,17 @@ julia> Join(
                     (right = "d", index = 4),
                     (right = "e", index = 6)
                 ],
-                Names(:index)
+                :index
             )
         ) |>
         collect
-6-element Array{Pair{Union{Missing, NamedTuple{(:left, :index),Tuple{String,Int64}}},Union{Missing, NamedTuple{(:right, :index),Tuple{String,Int64}}}},1}:
- (left = "a", index = 1) => (right = "a", index = 1)
- (left = "b", index = 2) => missing
-                 missing => (right = "c", index = 3)
-                 missing => (right = "d", index = 4)
- (left = "e", index = 5) => missing
- (left = "f", index = 6) => (right = "e", index = 6)
+6-element Array{Pair{Union{Missing, Tuple{Tuple{Name{:left},String},Tuple{Name{:index},Int64}}},Union{Missing, Tuple{Tuple{Name{:right},String},Tuple{Name{:index},Int64}}}},1}:
+ ((left, "a"), (index, 1)) => ((right, "a"), (index, 1))
+ ((left, "b"), (index, 2)) => missing
+                   missing => ((right, "c"), (index, 3))
+                   missing => ((right, "d"), (index, 4))
+ ((left, "e"), (index, 5)) => missing
+ ((left, "f"), (index, 6)) => ((right, "e"), (index, 6))
 ```
 
 Assumes `left` and `right` are both strictly sorted (no repeats). If there are repeats, [`Group`](@ref) first. For other join flavors, combine with [`when`](@ref). Make sure to annotate with [`Length`](@ref) if you know it.
@@ -372,5 +362,4 @@ export Length
 @propagate_inbounds view(it::Generator, index...) =
     Generator(it.f, view(it.iter, index...))
 @propagate_inbounds view(it::Filter, index...) = view(it.itr, index...)
-getindex(g::Generator, index...) = g.f(g.iter[index...])
-LinearIndices(g::Generator) = LinearIndices(g.iter)
+@propagate_inbounds getindex(it::Generator, index...) = it.f(it.iter[index...])

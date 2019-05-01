@@ -4,7 +4,7 @@ end
 function ZippedArrays(model, rest...)
     arrays = (model, rest...)
     ZippedArrays{
-        Tuple{eltype.(arrays)...},
+        Tuple{map(eltype, arrays)...},
         ndims(model),
         typeof(arrays)
     }(arrays)
@@ -17,13 +17,13 @@ axes(arrays::ZippedArrays, args...) = axes(arrays.arrays[1], args...)
 size(arrays::ZippedArrays, args...) = size(arrays.arrays[1], args...)
 @propagate_inbounds function getindex(arrays::ZippedArrays, index...)
     @propagate_inbounds inner_getindex(array) = array[index...]
-    inner_getindex.(arrays.arrays)
+    map(inner_getindex, arrays.arrays)
 end
 @propagate_inbounds function setindex!(arrays::ZippedArrays, values, index...)
     @propagate_inbounds inner_setindex!(array, value) = array[index...] = value
-    inner_setindex!.(arrays.arrays, values)
+    map(inner_setindex!, arrays.arrays, values)
 end
-push!(arrays::ZippedArrays, values) = push!.(arrays.arrays, values)
+push!(arrays::ZippedArrays, values) = map(push!, arrays.arrays, values)
 function similar(arrays::ZippedArrays, ::Type, dimensions::Dims)
 	@inline inner_similar(index) = Array{Any}(undef, dimensions...)
 	zip(ntuple(inner_similar, length(arrays.arrays))...)
@@ -36,7 +36,7 @@ end
 empty(array::ZippedArrays{Olds}, ::Type{News} = Olds) where {Olds, News} =
     similar(array, News)
 maybe_setindex_widen_up_to(array::AbstractArray{Item}, item, index) where {Item} =
-    if isa(item, Item)
+    if typeof(item) === Item || isa(item, Item)
         @inbounds array[index] = item
         array
     else
@@ -47,7 +47,7 @@ setindex_widen_up_to(arrays::ZippedArrays, items, index) = zip(map(
     arrays.arrays, items
 )...)
 maybe_push_widen(array::AbstractArray{Item}, item) where {Item} =
-    if isa(item, Item)
+    if typeof(item) === Item || isa(item, Item)
         push!(array, item)
         array
     else
@@ -60,7 +60,7 @@ view(arrays::ZippedArrays, index...) =
 """
     unzip(it, n)
 
-Unzip an iterator `it` which returns tuples of length `n`. Use `Val(n)` to guarantee type stability.
+Unzip an iterator `it` which returns tuples of length `n`.
 
 ```jldoctest
 julia> using LightQuery

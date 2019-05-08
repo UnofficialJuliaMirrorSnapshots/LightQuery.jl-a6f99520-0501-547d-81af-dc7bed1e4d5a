@@ -10,14 +10,15 @@ using Base: _collect, @default_eltype, diff_names, EltypeUnknown, Generator,
 using Base.Iterators: Filter, flatten, product, take, Zip, _zip_iterator_eltype,
     _zip_iterator_size
 using Base.Meta: quot
-import CSV
 using IterTools: @ifsomething
 import MacroTools
 using MacroTools: @capture
 using MappedArrays: mappedarray
 using Markdown: MD, Table
-export CSV, File, Generator, Filter, flatten
+using Tables: Schema, schema
+export Generator, Filter, flatten
 
+include("utilities.jl")
 include("macros.jl")
 include("Unzip.jl")
 include("rows.jl")

@@ -2,29 +2,52 @@ const Some{AType} = Tuple{AType, Vararg{AType}}
 
 flatten_unrolled(::Tuple{}) = ()
 flatten_unrolled(them::Some{Any}) =
-    them[1]..., flatten_unrolled(tail(them))...
+    first(them)..., flatten_unrolled(tail(them))...
 
-partial_map(f, fixed, variables::Tuple{}) = ()
-partial_map(f, fixed, variables::Some{Any}) =
-    f(fixed, variables[1]), partial_map(f, fixed, tail(variables))...
-partial_map(f, fixed, ::Tuple{}, ::Tuple{}) = ()
-partial_map(f, fixed, variables1::Some{Any}, variables2::Some{Any}) =
-    f(fixed, variables1[1], variables2[1]),
-    partial_map(f, fixed, tail(variables1), tail(variables2))...
-partial_map(f, fixed, variables) = map(
+@inline partial_map(f, fixed, variables::Vararg{Tuple{}}) = ()
+@inline partial_map(f, fixed, variables::Vararg{Tuple}) =
+    f(fixed, map(first, variables)...),
+    partial_map(f, fixed, map(tail, variables)...)...
+@inline partial_map(f, fixed, variables) = map(
     let fixed = fixed
         variable -> f(fixed, variable)
     end,
     variables
 )
-partial_map(f, fixed, variables1, variables2) = map(
-    let fixed = fixed
-        (variable1, variable2) -> f(fixed, variable1, variable2)
-    end,
-    variables1, variables2
-)
 
-@pure pure_fieldcount(AType) = Val{fieldcount(AType)}()
+filter_unrolled(f, ::Tuple{}) = ()
+function filter_unrolled(f, them::Some{Any})
+    head = first(them)
+    rest = filter_unrolled(f, tail(them))
+    if f(head)
+        head, rest...
+    else
+        rest
+    end
+end
+
+function val_fieldtypes_or_empty(type::TypeofBottom)
+    @warn "Unable to infer the fieldtypes of $type, defaulting to `()` for empty iterators. Likely to due inner function error"
+    ()
+end
+function val_fieldtypes_or_empty(type::Union)
+    @warn "Unable to infer the fieldtypes of the Union type $type, defaulting to `()` for empty iterators"
+    ()
+end
+function val_fieldtypes_or_empty(type::UnionAll)
+    @warn "Unable to infer the fieldtypes of the UnionAll type $type, defaulting to `()` for empty iterators"
+    ()
+end
+@pure val_fieldtypes_or_empty(type::DataType) =
+    if type.abstract
+        @warn "Unable to infer the fieldtypes of the abstract type $type, defaulting to `()` for empty iterators"
+        ()
+    elseif (type.name === Tuple.name && isvatuple(type))
+        @warn "Unable to infer the fieldtypes of the Varargs type $type, defaulting to `()` for empty iterators"
+        ()
+    else
+        map(Val, fieldtypes(type))
+    end
 
 """
     over(iterator, call)
@@ -47,7 +70,10 @@ export when
 
 The `key` in a `key => value` `pair`.
 """
-key(pair::Tuple) = pair[1]
+function key(pair)
+    a_key, a_value = pair
+    a_key
+end
 key(pair::Pair) = pair.first
 export key
 
@@ -56,9 +82,41 @@ export key
 
 The `value` in a `key => value` `pair`.
 """
-value(pair::Tuple) = pair[2]
+function value(pair::Tuple{Any, Any})
+    a_key, a_value = pair
+    a_value
+end
 value(pair::Pair) = pair.second
-
 export value
 
-const ValType = Val{AType} where AType <: Type
+"""
+    if_known(something)
+
+If `something` is `missing`, return `missing`, otherwise, `something`.
+
+```jldoctest
+julia> using LightQuery
+
+julia> function test(x)
+            first(@if_known(x))
+        end;
+
+julia> test((1, 2))
+1
+
+julia> test(missing)
+missing
+```
+"""
+macro if_known(something)
+    quote
+        let something = $(esc(something))
+            if something === missing
+                return missing
+            else
+                something
+            end
+        end
+    end
+end
+export @if_known

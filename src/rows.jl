@@ -8,7 +8,7 @@ state_to_index(zipped::Zip, state) =
 """
     Enumerated{Iterator}
 
-Relies on the fact that iteration states can be converted to indices; thus, you might have to define `LightQuery.state_to_index` for unrecognized types. "Sees through" some iterators like `Filter`.
+Relies on the fact that iteration states can be converted to indices; thus, you might have to define `LightQuery.state_to_index` for unrecognized types. "Sees through" some iterators like `when`.
 
 ```jldoctest
 julia> using LightQuery
@@ -45,20 +45,17 @@ end
 export Enumerated
 
 """
-    order(unordered, key; keywords...)
+    order(unordered, a_key; keywords...)
 
 Generalized sort. `keywords` will be passed to `sort!`; see the documentation there for options. Use [`By`](@ref) to mark that an object has been sorted. Relies on [`Enumerated`](@ref).
 
 ```jldoctest
 julia> using LightQuery
 
-julia> @name order([
-            (item = "b", index = 2),
-            (item = "a", index = 1)
-        ], :index)
-2-element view(::Array{Tuple{Tuple{Name{:item},String},Tuple{Name{:index},Int64}},1}, [2, 1]) with eltype Tuple{Tuple{Name{:item},String},Tuple{Name{:index},Int64}}:
- ((`item`, "a"), (`index`, 1))
- ((`item`, "b"), (`index`, 2))
+julia> order([-2, 1], abs)
+2-element view(::Array{Int64,1}, [2, 1]) with eltype Int64:
+  1
+ -2
 ```
 """
 order(unordered, a_key; keywords...) =
@@ -111,52 +108,39 @@ eltype(::Type{Indexed{Iterator, Indices}}) where {Iterator, Indices} =
     Pair{keytype(Indices), Union{Missing, eltype(Iterator)}}
 
 """
-    index(iterator, key)
+    index(iterator, a_key)
 
-Index `iterator` by the results of `key`. Relies on [`Enumerated`](@ref).
+Index `iterator` by the results of `a_key`. Relies on [`Enumerated`](@ref). Results of `a_key` must be unique.
 
 ```jldoctest
 julia> using LightQuery
 
-julia> result = @name index(
-            [
-                (item = "b", index = 2),
-                (item = "a", index = 1)
-            ],
-            :index
-        );
+julia> result = index([-2, 1], abs);
 
 julia> result[2]
-((`item`, "b"), (`index`, 2))
+-2
 ```
 """
-function index(iterator, key)
+function index(iterator, a_key)
+    inner_index((index, item)) = a_key(item) => index
     Indexed(iterator, collect_similar(
         Dict{Union{}, Union{}}(),
-        Generator(
-            index_item -> begin
-                index, item = index_item
-                key(item) => index
-            end,
-            Enumerated(iterator)
-        )
+        Generator(inner_index, Enumerated(iterator))
     ))
 end
 export index
 
 """
-    By(iterator, key)
+    By(iterator, a_key)
 
-Mark that `iterator` has been pre-sorted by `key`. Use with [`Group`](@ref) or
+Mark that `iterator` has been pre-sorted by `a_key`. Use with [`Group`](@ref) or
 [`InnerJoin`](@ref).
 
 ```jldoctest
 julia> using LightQuery
 
-julia> @name By([
-            (item = "a", index = 1),
-            (item = "b", index = 2)
-        ], :index);
+julia> By([1, -2], abs)
+By{Array{Int64,1},typeof(abs)}([1, -2], abs)
 ```
 """
 struct By{Iterator, Key}
@@ -178,19 +162,14 @@ Group consecutive keys in `ungrouped`. Requires a presorted object (see [`By`](@
 ```jldoctest
 julia> using LightQuery
 
-julia> @name Group(By(
-            [
-                (item = "a", group = 1),
-                (item = "b", group = 1),
-                (item = "c", group = 2),
-                (item = "d", group = 2)
-            ],
-            :group
-        )) |>
-        collect
-2-element Array{Tuple{Int64,SubArray{Tuple{Tuple{Name{:item},String},Tuple{Name{:group},Int64}},1,Array{Tuple{Tuple{Name{:item},String},Tuple{Name{:group},Int64}},1},Tuple{UnitRange{Int64}},true}},1}:
- (1, [((`item`, "a"), (`group`, 1)), ((`item`, "b"), (`group`, 1))])
- (2, [((`item`, "c"), (`group`, 2)), ((`item`, "d"), (`group`, 2))])
+julia> collect(Group(By([1, -1, -2, 2, 3, -3], abs)))
+3-element Array{Tuple{Int64,SubArray{Int64,1,Array{Int64,1},Tuple{UnitRange{Int64}},true}},1}:
+ (1, [1, -1])
+ (2, [-2, 2])
+ (3, [3, -3])
+
+julia> collect(Group(By(Int[], abs)))
+0-element Array{Tuple{Int64,SubArray{Int64,1,Array{Int64,1},Tuple{UnitRange{Int64}},true}},1}
 ```
 """
 Group(sorted::By) = Group(sorted.iterator, sorted.key)
@@ -302,30 +281,19 @@ Find all pairs where `isequal(left.key(left.iterator), right.key(right.iterator)
 ```jldoctest InnerJoin
 julia> using LightQuery
 
-julia> @name InnerJoin(
-            By(
-                [
-                    (left = "a", index = 1),
-                    (left = "b", index = 2),
-                    (left = "e", index = 5),
-                    (left = "f", index = 6)
-                ],
-                :index
-            ),
-            By(
-                [
-                    (right = "a", index = 1),
-                    (right = "c", index = 3),
-                    (right = "d", index = 4),
-                    (right = "e", index = 6)
-                ],
-                :index
-            )
-        ) |>
-        collect
-2-element Array{Tuple{Tuple{Tuple{Name{:left},String},Tuple{Name{:index},Int64}},Tuple{Tuple{Name{:right},String},Tuple{Name{:index},Int64}}},1}:
- (((`left`, "a"), (`index`, 1)), ((`right`, "a"), (`index`, 1)))
- (((`left`, "f"), (`index`, 6)), ((`right`, "e"), (`index`, 6)))
+julia> collect(InnerJoin(By([1, -2, 5, -6], abs), By([-1, 3, -4, 6], abs)))
+2-element Array{Tuple{Int64,Int64},1}:
+ (1, -1)
+ (-6, 6)
+
+julia> collect(InnerJoin(By(Int[], abs), By(Int[], abs)))
+0-element Array{Tuple{Int64,Int64},1}
+
+julia> collect(InnerJoin(By(Int[1], abs), By(Int[], abs)))
+0-element Array{Tuple{Int64,Int64},1}
+
+julia> collect(InnerJoin(By(Int[], abs), By(Int[1], abs)))
+0-element Array{Tuple{Int64,Int64},1}
 ```
 
 Assumes `left` and `right` are both strictly sorted (no repeats). If there are repeats, [`Group`](@ref) first. Annotate with [`Length`](@ref) if you know it.
@@ -367,9 +335,7 @@ Allow optimizations based on length.
 ```jldoctest
 julia> using LightQuery
 
-julia> @> Filter(iseven, 1:4) |>
-        Length(_, 2) |>
-        collect
+julia> collect(Length(when(1:4, iseven), 2))
 2-element Array{Int64,1}:
  2
  4
@@ -390,8 +356,8 @@ export Length
 
 # piracy
 function copyto!(dictionary::Dict{Key, Value}, pairs::AbstractVector{Tuple{Key, Value}}) where {Key, Value}
-    foreach(pair -> dictionary[key(pair)] = value(pair), pairs)
-    dictionary
+    copyto_at!((a_key, a_value)) = dictionary[a_key] = a_value
+    foreach(copyto_at!, dictionary)
 end
 similar(old::Dict, ::Type{Tuple{Key, Value}}) where {Key, Value} =
     Dict{Key, Value}(old)

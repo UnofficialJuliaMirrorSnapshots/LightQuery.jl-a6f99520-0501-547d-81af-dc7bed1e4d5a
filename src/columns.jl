@@ -14,7 +14,6 @@ julia> Name(:a)
 ```
 """
 @inline Name(name) = Name{name}()
-
 export Name
 
 """
@@ -60,6 +59,7 @@ getindex(row::Some{Named}, ::Tuple{}) = ()
 
 # to override recusion limit on constant propagation
 @pure to_Names(some_names::Some{Symbol}) = map_unrolled(Name, some_names)
+to_Names(them) = map_unrolled(Name, Tuple(them))
 
 NamedTuple(row::Some{Named}) = NamedTuple{map_unrolled(unname ∘ key, row)}(
     map_unrolled(value, row)
@@ -185,9 +185,9 @@ julia> @inferred named_tuple(MyType(1, 1.0, 1, 1.0, 1, 1.0))
 named_tuple(row) = row[to_Names(propertynames(row))]
 export named_tuple
 
-haskey(row::Some{Named}, name::Name) =
+@inline haskey(row::Some{Named}, name::Name) =
     isempty(if_not_in(map_unrolled(key, row), name))
-haskey(row, ::Name{name}) where {name} = hasproperty(row, name)
+@inline haskey(row, ::Name{name}) where {name} = hasproperty(row, name)
 
 """
     remove(row, old_names...)
@@ -337,8 +337,6 @@ iteration of rows. See example in [`to_Columns`](@ref).
 
 """
 struct Column{name, type, position}
-    Column{name, type, position}() where {name, type, position} =
-        new{name::Symbol, type::Type, position::Int}()
 end
 export Column
 

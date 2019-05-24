@@ -769,11 +769,13 @@ Parse a day. `missing` is represented by `-9999`.
 julia> function get_day(line, day)
             start = 14 + 8 * day
             value = parse(Int, line[start:start + 4])
-            @name (day = day, value = if value == -9999
-                missing
-            else
-                value
-            end)
+            @name (day = day, value =
+                if value == -9999
+                    missing
+                else
+                    value
+                end
+            )
         end;
 
 julia> get_day(line, 1)
@@ -915,14 +917,24 @@ Showing at most 4 rows
 @_
 @>
 @if_known
+@name
+```
+
+## Values
+
+```@docs
+if_else
+key
+value
+Name
+unname
+Column
+Descending
 ```
 
 ## Columns
 
 ```@docs
-@name
-Name
-unname
 named_tuple
 rename
 transform
@@ -930,27 +942,27 @@ remove
 gather
 spread
 Apply
-Column
 to_Columns
 ```
 
 ## Rows
 
 ```@docs
-Enumerated
+Enumerate
 over
 index
 when
 order
 By
 Group
-key
-value
 InnerJoin
-Length
+LeftJoin
+RightJoin
+OuterJoin
+distinct
 ```
 
-## Pivot
+## Tables
 
 ```@docs
 to_rows

@@ -1,3 +1,6 @@
+```@contents
+```
+
 # Tutorial
 
 I'm using the data from the [dplyr tutorial](https://cran.r-project.org/web/packages/dplyr/vignettes/dplyr.html). The data is in the test folder of this package.
@@ -902,58 +905,10 @@ Showing at most 4 rows
 
 # Interface
 
-## Macros
-
-```@docs
-@_
-@>
-@if_known
-@name
+```@index
+Modules = [LightQuery]
 ```
 
-## Values
-
-```@docs
-if_else
-key
-value
-Name
-unname
-backwards
-```
-
-## Columns
-
-```@docs
-named_tuple
-rename
-transform
-remove
-gather
-spread
-Apply
-row_info
-```
-
-## Rows
-
-```@docs
-Enumerate
-over
-index
-when
-order
-By
-Group
-mix
-distinct
-```
-
-## Tables
-
-```@docs
-to_rows
-Peek
-to_columns
-make_columns
+```@autodocs
+Modules = [LightQuery]
 ```

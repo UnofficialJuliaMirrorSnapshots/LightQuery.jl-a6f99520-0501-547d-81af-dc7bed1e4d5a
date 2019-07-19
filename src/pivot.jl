@@ -1,7 +1,7 @@
 """
     to_rows(columns)
 
-Iterator over `rows` of a table. Always lazy. Inverse of [`to_columns`](@ref). Use [`Peek`](@ref) to view.
+Iterator over `rows` of a table. Always lazy. Use [`Peek`](@ref) to view.
 
 ```jldoctest
 julia> using LightQuery
@@ -34,9 +34,7 @@ Peek an iterator which returns named tuples. Will show no more than `maximum_len
 ```jldoctest Peek
 julia> using LightQuery
 
-julia> using Test: @inferred
-
-julia> @name @inferred Peek(to_rows((a = 1:5, b = 5:-1:1)))
+julia> @name Peek(to_rows((a = 1:5, b = 5:-1:1)))
 Showing 4 of 5 rows
 | `a` | `b` |
 | ---:| ---:|
@@ -49,7 +47,7 @@ Showing 4 of 5 rows
 Peek(rows) = Peek(rows, 4)
 
 make_any(values) = Any[values...]
-default_side(column) = :r
+justification(column) = :r
 function show(output::IO, peek::Peek)
     rows = peek.rows
     maximum_length = peek.maximum_length
@@ -63,23 +61,8 @@ function show(output::IO, peek::Peek)
     columns = make_columns(take(rows, maximum_length))
     rows = map(make_any, zip(map(value, columns)...))
     pushfirst!(rows, make_any(map_unrolled(key, columns)))
-    show(output, MD(Table(rows, make_any(map_unrolled(default_side, columns)))))
+    show(output, MD(Table(
+        rows,
+        make_any(map_unrolled(justification, columns))
+    )))
 end
-
-"""
-    to_columns(rows)
-
-Inverse of [`to_rows`](@ref). Always lazy, see [`make_columns`](@ref) for an eager version.
-
-```jldoctest
-julia> using LightQuery
-
-julia> using Test: @inferred
-
-julia> @name @inferred to_columns(to_rows((a = [1, 2], b = [1.0, 2.0])))
-((`a`, [1, 2]), (`b`, [1.0, 2.0]))
-```
-"""
-to_columns(rows::Generator{<: Zip, <: Apply}) =
-    rows.f(get_columns(rows.iter))
-export to_columns

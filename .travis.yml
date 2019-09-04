@@ -3,7 +3,7 @@ os:
   - linux
 julia:
   - 1.0
-  - 1.1
+  - 1.2
   - nightly
 matrix:
   allow_failures:
@@ -11,4 +11,18 @@ matrix:
     - julia: nightly
 notifications:
   email: false
-codecov: true
+script:
+  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
+  - julia --project --code-coverage=tracefile-%p.info --code-coverage=user build_and_test.jl
+after_success:
+  - if [[ $TRAVIS_JULIA_VERSION = 1.2 ]] && [[ $TRAVIS_OS_NAME = linux ]]; then
+      julia --project=coverage coverage/coverage.jl;
+    fi
+jobs:
+  include:
+    - stage: "Documentation"
+      julia: 1.2
+      os: linux
+      script:
+        - julia --project=docs docs/document.jl
+      after_success: skip

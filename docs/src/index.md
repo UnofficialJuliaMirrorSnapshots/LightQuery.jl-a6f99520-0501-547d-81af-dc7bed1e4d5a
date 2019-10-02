@@ -3,7 +3,9 @@
 
 # Usage and performance notes
 
-LightQuery is most performant when the number of columns is short compared to the number of rows. Otherwise, compile-time might swamp run-time, and I'd suggest using DataFrames instead.
+LightQuery is most performant when the number of columns is short compared to the number of rows. Otherwise, compile-time might swamp run-time, and I'd suggest using DataFrames instead. In
+addition, due to the limits of inference, LightQuery will not be performant if there are more
+than 30 columns.
 
 You can avoid most allocations in LightQuery by keeping your data pre-sorted. If your data is not pre-sorted, then the majority of run-time will likely be spent in sorting.
 
@@ -691,15 +693,14 @@ Showing 4 of 87 rows
 |       0.0 mi |         -7 minute |
 ```
 
-Calculate the mean `departure_delay` using [`to_columns`](@ref).
+Calculate the mean `departure_delay`.
 
 ```jldoctest dplyr
 julia> using Statistics: mean
 
 julia> @name @> visibility_group |>
         value |>
-        to_columns |>
-        _.departure_delay |>
+        over(_, :departure_delay) |>
         mean
 32.252873563218394 minute
 ```
@@ -712,8 +713,7 @@ julia> get_mean_departure_delay(visibility_group) = @name (
             mean_departure_delay =
                 (@> visibility_group |>
                     value |>
-                    to_columns |>
-                    _.departure_delay |>
+                    over(_, :departure_delay) |>
                     mean),
             count = length(value(visibility_group))
         );
